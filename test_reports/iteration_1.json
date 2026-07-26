@@ -1,0 +1,36 @@
+{
+  "summary": "Full backend + frontend testing of Dark Funnel Intent Detection app. 9/9 pytest backend tests passed. All required frontend data-testids present and interactions (high-intent filter, row expand for AI summary, simulate visit, manage accounts modal add-account) work end-to-end. Seed data verified: 200+ events, 20 target accounts, 46+ Claude-generated alerts.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Matched Visits table", "issues": ["With current seed data every matched company has max_score >= 70, so toggling 'High intent only' visibly filters nothing. Not a bug — expected given seed distribution — but a reviewer might want more low-score matched companies in seed to make the filter visually meaningful."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py uses deprecated FastAPI @app.on_event('startup'); consider migrating to lifespan handlers for FastAPI 0.100+ forward-compat.",
+    "regenerate_alerts endpoint iterates all high-intent events synchronously with await summarize_session per event; for 50+ events with ~2s Claude latency this endpoint can exceed 100s. Consider background task / streaming response or explicit long-timeout doc.",
+    "CORS middleware is added AFTER app.include_router — works in FastAPI but conventionally middleware is added before routers.",
+    "Frontend uses relative /api URLs (works because same origin) — good; no REACT_APP_BACKEND_URL usage needed here since it is a static HTML served by backend origin.",
+    "No pagination on /api/events or /api/alerts beyond a limit param; fine for demo scale."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "N/A — app has no auth",
+  "seed_data_creation": "Used existing seed data (200 events, 20 accounts, 46 alerts). Test created and cleaned up 1 TEST_PW_Corp account and 2 synthetic events during runs.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/backend_test.py covers stats, accounts CRUD (+409 dup), event ingest (matched high-intent + residential no-match), events filter, matched-visits aggregation & sort, alerts list, and regenerate idempotency. Frontend testids verified: dashboard-root, stat-* (total/matched/high/alerts/accounts), visits-table, alerts-list, filter-high-intent, visits-search, simulate-visit-btn, regen-alerts-btn, manage-accounts-btn, accounts-modal, close-accounts-modal, accounts-table, account-row-{id}, delete-account-{id}, new-account-form, new-acc-name, new-acc-domain, new-acc-industry, new-acc-owner, new-acc-tier, add-account-btn, visit-row-{id}, score-{id}, summary-row-{id}, alert-item-{id}. Test data prefix is 'TEST_' / 'pwtest-'. To re-seed DB run: cd /app/backend && python seed_data.py.",
+  "rca of the issue": "No issues found."
+}

@@ -1,0 +1,21 @@
+company_name,domain,industry,crm_owner,tier
+Acme Corp,acme.com,Manufacturing,Sarah Chen,A
+Globex Corp,globex.com,Conglomerate,Marcus Rivera,A
+Initech,initech.com,Software,Priya Patel,B
+Umbrella Corp,umbrellacorp.com,Biotech,James O'Neill,A
+Wayne Enterprises,wayneenterprises.com,Aerospace,Sarah Chen,A
+Stark Industries,starkindustries.com,Defense,Marcus Rivera,A
+Cyberdyne Systems,cyberdyne.com,Robotics,Priya Patel,B
+Wonka Industries,wonka.com,Consumer Goods,Elena Kowalski,C
+Soylent Corp,soylent.com,Food Tech,Elena Kowalski,C
+Massive Dynamic,massivedynamic.com,R&D,James O'Neill,B
+Tyrell Corp,tyrell.com,Bio-Engineering,Sarah Chen,A
+Weyland-Yutani,weyland-yutani.com,Aerospace,Marcus Rivera,B
+Aperture Science,aperturescience.com,Research,Priya Patel,A
+Pied Piper,piedpiper.com,Software,Elena Kowalski,B
+Hooli,hooli.com,Internet,James O'Neill,A
+Nakatomi Trading,nakatomi.com,Financial Services,Sarah Chen,B
+Vandelay Industries,vandelay.com,Import/Export,Marcus Rivera,C
+Sirius Cybernetics,siriuscyber.com,Robotics,Priya Patel,B
+Bluth Company,bluthco.com,Real Estate,Elena Kowalski,C
+Dunder Mifflin,dundermifflin.com,Paper,James O'Neill,B

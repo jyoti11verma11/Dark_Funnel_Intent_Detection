@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0f14" />
+    <meta name="description" content="Dark Funnel Intent Detection" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>Dark Funnel - Intent Detection</title>
+    <style>
+      :root {
+        --bg: #0b0f14;
+        --panel: #111821;
+        --panel-2: #0f1620;
+        --border: #1c2735;
+        --border-strong: #2a3a4f;
+        --text: #e6edf3;
+        --text-dim: #8ea0b5;
+        --accent: #7ee787;     /* IDE green */
+        --accent-dim: #3fb950;
+        --warn: #f0b429;
+        --danger: #ff6b6b;
+        --hot: #ff9d4b;
+        --link: #79c0ff;
+        --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        --sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0; height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+      }
+      body::before {
+        content: "";
+        position: fixed; inset: 0; pointer-events: none;
+        background:
+          radial-gradient(1200px 800px at 90% -20%, rgba(126,231,135,0.08), transparent 60%),
+          radial-gradient(900px 600px at -10% 110%, rgba(121,192,255,0.06), transparent 60%);
+        z-index: 0;
+      }
+      #root { display: none; } /* React is not used - keep out of the way */
+      .app { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+      /* ---------- Header ---------- */
+      header.top {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(11,15,20,0.6);
+        backdrop-filter: blur(12px);
+      }
+      .brand {
+        display: flex; align-items: center; gap: 12px;
+        font-family: var(--mono);
+        letter-spacing: -0.5px;
+      }
+      .brand .dot {
+        width: 10px; height: 10px; border-radius: 50%;
+        background: var(--accent); box-shadow: 0 0 12px var(--accent);
+      }
+      .brand h1 {
+        margin: 0; font-size: 15px; font-weight: 700; color: var(--text);
+      }
+      .brand .sub { color: var(--text-dim); font-size: 12px; }
+      .header-actions { display: flex; gap: 8px; align-items: center; }
+      .btn {
+        font-family: var(--mono); font-size: 12px; font-weight: 500;
+        padding: 8px 14px; border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        background: transparent; color: var(--text);
+        cursor: pointer; transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+      }
+      .btn:hover { background: rgba(126,231,135,0.08); border-color: var(--accent-dim); color: var(--accent); }
+      .btn.primary { background: var(--accent); color: #0b0f14; border-color: var(--accent); font-weight: 700; }
+      .btn.primary:hover { background: #a5f0aa; }
+      .btn.ghost { border-color: transparent; color: var(--text-dim); }
+      .btn.ghost:hover { color: var(--text); }
+
+      /* ---------- Layout ---------- */
+      main {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 32px;
+        padding: 32px;
+        flex: 1;
+      }
+      @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+
+      /* ---------- Stats strip ---------- */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 14px;
+        margin-bottom: 28px;
+      }
+      @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+      .stat {
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel);
+      }
+      .stat .label {
+        font-family: var(--mono);
+        font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+        color: var(--text-dim);
+      }
+      .stat .value {
+        margin-top: 8px;
+        font-family: var(--mono);
+        font-size: 26px; font-weight: 700;
+        color: var(--text);
+      }
+      .stat.accent .value { color: var(--accent); }
+      .stat.hot .value { color: var(--hot); }
+      .stat.warn .value { color: var(--warn); }
+
+      /* ---------- Panels ---------- */
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .panel-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .panel-header h2 {
+        margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -0.2px;
+        color: var(--text);
+      }
+      .panel-header .meta { color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
+
+      /* ---------- Filter row ---------- */
+      .filters {
+        display: flex; align-items: center; gap: 12px;
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel-2);
+      }
+      .switch {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+        cursor: pointer; user-select: none;
+      }
+      .switch input { accent-color: var(--accent); }
+      .filters .spacer { flex: 1; }
+      .filters .search {
+        background: transparent; border: 1px solid var(--border-strong);
+        border-radius: 8px; padding: 6px 10px; color: var(--text);
+        font-family: var(--mono); font-size: 12px; width: 180px;
+      }
+      .filters .search:focus { outline: none; border-color: var(--accent-dim); }
+
+      /* ---------- Table ---------- */
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      thead th {
+        text-align: left; padding: 10px 20px;
+        font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+        text-transform: uppercase; color: var(--text-dim);
+        border-bottom: 1px solid var(--border);
+        background: var(--panel-2); cursor: pointer;
+      }
+      thead th.sortable:hover { color: var(--text); }
+      thead th .arrow { display: inline-block; margin-left: 4px; opacity: 0.5; }
+      tbody td {
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      tbody tr:last-child td { border-bottom: none; }
+      tbody tr:hover { background: rgba(255,255,255,0.02); }
+      tbody tr.expanded { background: rgba(126,231,135,0.03); }
+      .company {
+        display: flex; flex-direction: column; gap: 2px;
+      }
+      .company .name { font-weight: 700; color: var(--text); }
+      .company .domain { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+      .pages {
+        display: flex; flex-wrap: wrap; gap: 4px; max-width: 320px;
+      }
+      .chip {
+        font-family: var(--mono); font-size: 11px;
+        padding: 2px 8px; border-radius: 999px;
+        background: rgba(121,192,255,0.08);
+        color: var(--link);
+        border: 1px solid rgba(121,192,255,0.16);
+      }
+      .chip.hot { background: rgba(255,157,75,0.10); color: var(--hot); border-color: rgba(255,157,75,0.24); }
+      .chip.warn { background: rgba(240,180,41,0.10); color: var(--warn); border-color: rgba(240,180,41,0.24); }
+      .score {
+        font-family: var(--mono); font-weight: 700; font-size: 14px;
+        color: var(--text);
+      }
+      .score-bar {
+        margin-top: 4px; width: 90px; height: 4px; border-radius: 2px;
+        background: rgba(255,255,255,0.06); overflow: hidden;
+      }
+      .score-bar > div { height: 100%; }
+      .score-hot > div { background: linear-gradient(90deg, var(--hot), #ff6b3b); }
+      .score-warm > div { background: var(--warn); }
+      .score-cold > div { background: var(--text-dim); }
+      .owner { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+      .tier-badge {
+        display: inline-block; font-family: var(--mono); font-size: 10px;
+        padding: 2px 6px; border-radius: 4px;
+        border: 1px solid var(--border-strong);
+        color: var(--text-dim); margin-left: 6px;
+      }
+      .tier-badge.A { color: var(--accent); border-color: var(--accent-dim); }
+      .tier-badge.C { opacity: 0.7; }
+      .rel-time { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+      .empty-state {
+        padding: 40px 20px; text-align: center; color: var(--text-dim);
+        font-family: var(--mono); font-size: 12px;
+      }
+      .summary-row td {
+        background: var(--panel-2);
+        padding: 12px 20px 18px 20px;
+        color: var(--text-dim);
+        font-size: 12.5px;
+        line-height: 1.55;
+      }
+      .summary-row .label {
+        font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+        text-transform: uppercase; color: var(--accent);
+        margin-bottom: 6px;
+      }
+
+      /* ---------- Alerts feed ---------- */
+      .alerts-list {
+        max-height: 74vh;
+        overflow-y: auto;
+      }
+      .alert-item {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border);
+        transition: background-color .3s ease;
+      }
+      .alert-item.new { background: rgba(126,231,135,0.06); }
+      .alert-item .head {
+        display: flex; align-items: baseline; justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .alert-item .company {
+        font-weight: 700; color: var(--text); font-size: 13px;
+      }
+      .alert-item .score-pill {
+        font-family: var(--mono); font-size: 11px; font-weight: 700;
+        padding: 2px 8px; border-radius: 999px;
+        background: rgba(255,157,75,0.12); color: var(--hot);
+        border: 1px solid rgba(255,157,75,0.24);
+      }
+      .alert-item .body { color: var(--text-dim); font-size: 12.5px; line-height: 1.5; }
+      .alert-item .foot {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+      }
+      .status-dot {
+        display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+        background: var(--accent); margin-right: 6px;
+      }
+
+      /* ---------- Modal ---------- */
+      .modal-backdrop {
+        display: none;
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        z-index: 50; align-items: center; justify-content: center;
+      }
+      .modal-backdrop.open { display: flex; }
+      .modal {
+        width: min(720px, 92vw); max-height: 86vh; overflow-y: auto;
+        background: var(--panel); border: 1px solid var(--border-strong);
+        border-radius: 14px;
+      }
+      .modal-header { display: flex; justify-content: space-between; align-items: center;
+        padding: 18px 22px; border-bottom: 1px solid var(--border); }
+      .modal-header h3 { margin: 0; font-size: 15px; }
+      .modal-body { padding: 18px 22px; }
+      .accounts-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+      .accounts-table th, .accounts-table td {
+        padding: 8px 10px; border-bottom: 1px solid var(--border);
+        text-align: left; font-family: var(--mono);
+      }
+      .accounts-table th { color: var(--text-dim); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+      .form-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }
+      .form-row input, .form-row select {
+        background: transparent; border: 1px solid var(--border-strong);
+        border-radius: 6px; padding: 8px; color: var(--text); font-family: var(--mono);
+        font-size: 12px;
+      }
+      .form-row input:focus, .form-row select:focus { outline: none; border-color: var(--accent-dim); }
+      .icon-btn {
+        background: transparent; border: none; color: var(--text-dim);
+        cursor: pointer; font-family: var(--mono); font-size: 12px;
+      }
+      .icon-btn:hover { color: var(--danger); }
+
+      /* Live pulse indicator */
+      .live {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+      }
+      .live .pulse {
+        width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(126,231,135,0.6); }
+        50%     { opacity: 0.6; transform: scale(0.9); box-shadow: 0 0 0 8px rgba(126,231,135,0); }
+      }
+
+      footer.foot {
+        padding: 22px 32px;
+        border-top: 1px solid var(--border);
+        color: var(--text-dim);
+        font-family: var(--mono); font-size: 11px;
+        display: flex; justify-content: space-between; gap: 12px;
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
+    <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
+    <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <div class="app" data-testid="dashboard-root">
+      <header class="top">
+        <div class="brand">
+          <span class="dot"></span>
+          <div>
+            <h1>DARK_FUNNEL <span class="sub">// intent detection</span></h1>
+          </div>
+        </div>
+        <div class="header-actions">
+          <span class="live" data-testid="live-indicator"><span class="pulse"></span> LIVE</span>
+          <button class="btn" id="btn-simulate" data-testid="simulate-visit-btn" title="Ingest a synthetic visitor event">+ Simulate visit</button>
+          <button class="btn" id="btn-regen" data-testid="regen-alerts-btn" title="Fire alerts for existing high-intent matched events">Regenerate alerts</button>
+          <button class="btn ghost" id="btn-accounts" data-testid="manage-accounts-btn">Manage accounts</button>
+        </div>
+      </header>
+
+      <main>
+        <section>
+          <div class="stats" data-testid="stats-strip">
+            <div class="stat"><div class="label">Total events</div><div class="value" id="stat-total" data-testid="stat-total">-</div></div>
+            <div class="stat accent"><div class="label">Matched</div><div class="value" id="stat-matched" data-testid="stat-matched">-</div></div>
+            <div class="stat hot"><div class="label">High intent</div><div class="value" id="stat-high" data-testid="stat-high">-</div></div>
+            <div class="stat warn"><div class="label">Alerts fired</div><div class="value" id="stat-alerts" data-testid="stat-alerts">-</div></div>
+            <div class="stat"><div class="label">Target accts</div><div class="value" id="stat-accts" data-testid="stat-accounts">-</div></div>
+          </div>
+
+          <div class="panel" data-testid="visits-panel">
+            <div class="panel-header">
+              <h2>Matched Visits</h2>
+              <span class="meta" id="visits-meta">-</span>
+            </div>
+            <div class="filters">
+              <label class="switch">
+                <input type="checkbox" id="filter-high" data-testid="filter-high-intent" />
+                High intent only (score &ge; <span id="threshold-label">70</span>)
+              </label>
+              <div class="spacer"></div>
+              <input class="search" id="search-input" placeholder="filter company / domain..." data-testid="visits-search" />
+            </div>
+            <table data-testid="visits-table">
+              <thead>
+                <tr>
+                  <th class="sortable" data-sort="company_name">Company <span class="arrow"></span></th>
+                  <th class="sortable" data-sort="pages">Pages viewed</th>
+                  <th class="sortable" data-sort="max_score" style="width:130px">Score <span class="arrow">▼</span></th>
+                  <th class="sortable" data-sort="last_seen" style="width:140px">Last seen <span class="arrow"></span></th>
+                  <th class="sortable" data-sort="crm_owner" style="width:160px">CRM owner</th>
+                </tr>
+              </thead>
+              <tbody id="visits-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel" data-testid="alerts-panel">
+          <div class="panel-header">
+            <h2>Alerts Feed</h2>
+            <span class="meta" id="alerts-meta">threshold ≥ <span id="threshold-label-2">70</span></span>
+          </div>
+          <div class="alerts-list" id="alerts-list" data-testid="alerts-list">
+            <div class="empty-state">No alerts yet. Simulate a high-intent visit to trigger one.</div>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="foot">
+        <span>SQLite · FastAPI · zero-framework dashboard</span>
+        <span>Auto-refreshing every 5s</span>
+      </footer>
+    </div>
+
+    <!-- Manage accounts modal -->
+    <div class="modal-backdrop" id="accounts-modal" data-testid="accounts-modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Target accounts</h3>
+          <button class="btn ghost" id="close-accounts" data-testid="close-accounts-modal">✕ Close</button>
+        </div>
+        <div class="modal-body">
+          <table class="accounts-table" data-testid="accounts-table">
+            <thead>
+              <tr>
+                <th>Company</th><th>Domain</th><th>Industry</th><th>Owner</th><th>Tier</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="accounts-tbody"></tbody>
+          </table>
+          <div class="form-row" data-testid="new-account-form">
+            <input placeholder="Company name" id="acc-name" data-testid="new-acc-name" />
+            <input placeholder="domain.com" id="acc-domain" data-testid="new-acc-domain" />
+            <input placeholder="Industry" id="acc-industry" data-testid="new-acc-industry" />
+            <input placeholder="CRM owner" id="acc-owner" data-testid="new-acc-owner" />
+            <select id="acc-tier" data-testid="new-acc-tier">
+              <option value="A">Tier A</option>
+              <option value="B" selected>Tier B</option>
+              <option value="C">Tier C</option>
+            </select>
+          </div>
+          <div style="margin-top: 12px; display: flex; gap: 8px;">
+            <button class="btn primary" id="btn-add-account" data-testid="add-account-btn">+ Add account</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ------------------------------------------------------------------
+      // Config
+      // ------------------------------------------------------------------
+      const API = "/api";
+      const REFRESH_MS = 5000;
+      let currentSort = { key: "max_score", dir: "desc" };
+      let highOnly = false;
+      let searchQ = "";
+      let expandedAccountId = null;
+      let lastAlertIds = new Set();
+      let threshold = 70;
+
+      // ------------------------------------------------------------------
+      // Helpers
+      // ------------------------------------------------------------------
+      const el = (sel) => document.querySelector(sel);
+      const elAll = (sel) => Array.from(document.querySelectorAll(sel));
+
+      async function api(path, opts = {}) {
+        const res = await fetch(API + path, {
+          headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+          ...opts,
+        });
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
+
+      function fmtRelative(ts) {
+        const d = new Date(ts);
+        const diff = (Date.now() - d.getTime()) / 1000;
+        if (diff < 60) return `${Math.floor(diff)}s ago`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+      }
+
+      function fmtDuration(sec) {
+        if (!sec) return "0s";
+        if (sec < 60) return `${sec}s`;
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return s ? `${m}m ${s}s` : `${m}m`;
+      }
+
+      function scoreClass(s) {
+        if (s >= threshold) return "score-hot";
+        if (s >= 45) return "score-warm";
+        return "score-cold";
+      }
+
+      // ------------------------------------------------------------------
+      // Renderers
+      // ------------------------------------------------------------------
+      async function refreshStats() {
+        try {
+          const s = await api("/stats");
+          threshold = s.alert_threshold || 70;
+          el("#threshold-label").textContent = threshold;
+          el("#threshold-label-2").textContent = threshold;
+          el("#stat-total").textContent = s.total_events;
+          el("#stat-matched").textContent = s.matched_events;
+          el("#stat-high").textContent = s.high_intent_events;
+          el("#stat-alerts").textContent = s.alerts;
+          el("#stat-accts").textContent = s.target_accounts;
+        } catch (e) { console.warn("stats", e); }
+      }
+
+      function renderVisits(rows) {
+        const tbody = el("#visits-tbody");
+        const q = searchQ.trim().toLowerCase();
+        let filtered = rows;
+        if (highOnly) filtered = filtered.filter(r => r.max_score >= threshold);
+        if (q) filtered = filtered.filter(r =>
+          r.company_name.toLowerCase().includes(q) ||
+          r.domain.toLowerCase().includes(q) ||
+          (r.crm_owner || "").toLowerCase().includes(q)
+        );
+        // sort
+        const { key, dir } = currentSort;
+        filtered = [...filtered].sort((a, b) => {
+          let av = a[key], bv = b[key];
+          if (key === "pages") { av = (a.pages_viewed || []).length; bv = (b.pages_viewed || []).length; }
+          if (key === "last_seen") { av = new Date(a.last_seen).getTime(); bv = new Date(b.last_seen).getTime(); }
+          if (typeof av === "string") { av = av.toLowerCase(); bv = (bv || "").toLowerCase(); }
+          if (av < bv) return dir === "asc" ? -1 : 1;
+          if (av > bv) return dir === "asc" ? 1 : -1;
+          return 0;
+        });
+
+        el("#visits-meta").textContent = `${filtered.length} companies · ${filtered.reduce((s,r) => s + r.visit_count, 0)} visits`;
+
+        if (!filtered.length) {
+          tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">No matched visits yet. Try "Simulate visit" or run the seed script.</div></td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(r => {
+          const isExpanded = expandedAccountId === r.account_id;
+          const cls = scoreClass(r.max_score);
+          const pagesHtml = (r.pages_viewed || []).slice(0, 5).map(p => {
+            let c = "chip";
+            if (/pricing|demo|contact-sales|enterprise/.test(p)) c += " hot";
+            else if (/integrations|features|product/.test(p)) c += " warn";
+            return `<span class="${c}">${p}</span>`;
+          }).join("");
+          const moreCount = (r.pages_viewed || []).length - 5;
+          const moreChip = moreCount > 0 ? `<span class="chip">+${moreCount}</span>` : "";
+          const tierCls = `tier-badge ${r.tier || 'B'}`;
+          const summaryRow = isExpanded ? `
+            <tr class="summary-row" data-testid="summary-row-${r.account_id}">
+              <td colspan="5">
+                <div class="label">AI Session Summary</div>
+                <div>${r.latest_summary || "No summary yet - crossing the score threshold triggers one automatically."}</div>
+                <div style="margin-top:8px;color:var(--text-dim);font-family:var(--mono);font-size:11px">
+                  ${r.visit_count} visits · ${fmtDuration(r.total_duration_sec)} total time · domain <span style="color:var(--link)">${r.domain}</span>
+                </div>
+              </td>
+            </tr>` : "";
+          return `
+            <tr class="${isExpanded ? 'expanded' : ''}" data-account-id="${r.account_id}" data-testid="visit-row-${r.account_id}">
+              <td>
+                <div class="company">
+                  <span class="name">${r.company_name}<span class="${tierCls}">${r.tier}</span></span>
+                  <span class="domain">${r.domain}</span>
+                </div>
+              </td>
+              <td><div class="pages">${pagesHtml}${moreChip}</div></td>
+              <td>
+                <div class="score" data-testid="score-${r.account_id}">${Math.round(r.max_score)}</div>
+                <div class="score-bar ${cls}"><div style="width:${Math.min(100, r.max_score)}%"></div></div>
+              </td>
+              <td><span class="rel-time">${fmtRelative(r.last_seen)}</span></td>
+              <td><span class="owner">${r.crm_owner || "-"}</span></td>
+            </tr>
+            ${summaryRow}
+          `;
+        }).join("");
+
+        elAll("#visits-tbody tr[data-account-id]").forEach(tr => {
+          tr.addEventListener("click", () => {
+            const id = Number(tr.dataset.accountId);
+            expandedAccountId = expandedAccountId === id ? null : id;
+            renderVisits(currentVisits);
+          });
+        });
+      }
+
+      function renderAlerts(alerts) {
+        const list = el("#alerts-list");
+        if (!alerts.length) {
+          list.innerHTML = `<div class="empty-state">No alerts yet. Simulate a high-intent visit to trigger one.</div>`;
+          return;
+        }
+        list.innerHTML = alerts.map(a => {
+          const isNew = !lastAlertIds.has(a.id);
+          const cls = isNew ? "alert-item new" : "alert-item";
+          return `
+            <div class="${cls}" data-testid="alert-item-${a.id}">
+              <div class="head">
+                <span class="company">${a.company_name || "-"}</span>
+                <span class="score-pill">${Math.round(a.intent_score)}</span>
+              </div>
+              <div class="body">${a.summary || "-"}</div>
+              <div class="foot">
+                <span><span class="status-dot"></span>owner: ${a.crm_owner || "-"}</span>
+                <span>${fmtRelative(a.created_at)}</span>
+              </div>
+            </div>
+          `;
+        }).join("");
+        lastAlertIds = new Set(alerts.map(a => a.id));
+      }
+
+      // ------------------------------------------------------------------
+      // Data fetching
+      // ------------------------------------------------------------------
+      let currentVisits = [];
+      async function refreshVisits() {
+        try {
+          currentVisits = await api("/visits/matched");
+          renderVisits(currentVisits);
+        } catch (e) { console.warn("visits", e); }
+      }
+      async function refreshAlerts() {
+        try {
+          const alerts = await api("/alerts?limit=30");
+          renderAlerts(alerts);
+        } catch (e) { console.warn("alerts", e); }
+      }
+
+      async function refreshAll() {
+        await Promise.all([refreshStats(), refreshVisits(), refreshAlerts()]);
+      }
+
+      // ------------------------------------------------------------------
+      // Accounts modal
+      // ------------------------------------------------------------------
+      async function refreshAccounts() {
+        const rows = await api("/accounts");
+        el("#accounts-tbody").innerHTML = rows.map(a => `
+          <tr data-testid="account-row-${a.id}">
+            <td>${a.company_name}</td>
+            <td>${a.domain}</td>
+            <td>${a.industry || "-"}</td>
+            <td>${a.crm_owner || "-"}</td>
+            <td>${a.tier || "B"}</td>
+            <td><button class="icon-btn" data-del="${a.id}" data-testid="delete-account-${a.id}">delete</button></td>
+          </tr>
+        `).join("");
+        elAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
+          await api("/accounts/" + b.dataset.del, { method: "DELETE" });
+          refreshAccounts(); refreshAll();
+        }));
+      }
+
+      el("#btn-accounts").addEventListener("click", async () => {
+        await refreshAccounts();
+        el("#accounts-modal").classList.add("open");
+      });
+      el("#close-accounts").addEventListener("click", () => el("#accounts-modal").classList.remove("open"));
+      el("#accounts-modal").addEventListener("click", (e) => {
+        if (e.target.id === "accounts-modal") el("#accounts-modal").classList.remove("open");
+      });
+      el("#btn-add-account").addEventListener("click", async () => {
+        const payload = {
+          company_name: el("#acc-name").value.trim(),
+          domain: el("#acc-domain").value.trim(),
+          industry: el("#acc-industry").value.trim() || null,
+          crm_owner: el("#acc-owner").value.trim() || null,
+          tier: el("#acc-tier").value,
+        };
+        if (!payload.company_name || !payload.domain) { alert("Company & domain required."); return; }
+        try {
+          await api("/accounts", { method: "POST", body: JSON.stringify(payload) });
+          ["#acc-name","#acc-domain","#acc-industry","#acc-owner"].forEach(s => el(s).value = "");
+          await refreshAccounts(); refreshAll();
+        } catch (e) { alert("Failed: " + e.message); }
+      });
+
+      // ------------------------------------------------------------------
+      // Interactions
+      // ------------------------------------------------------------------
+      el("#filter-high").addEventListener("change", (e) => {
+        highOnly = e.target.checked;
+        renderVisits(currentVisits);
+      });
+      el("#search-input").addEventListener("input", (e) => {
+        searchQ = e.target.value;
+        renderVisits(currentVisits);
+      });
+      elAll("thead th.sortable").forEach(th => {
+        th.addEventListener("click", () => {
+          const k = th.dataset.sort;
+          if (currentSort.key === k) currentSort.dir = currentSort.dir === "asc" ? "desc" : "asc";
+          else currentSort = { key: k, dir: k === "company_name" ? "asc" : "desc" };
+          elAll("thead th.sortable .arrow").forEach(a => a.textContent = "");
+          th.querySelector(".arrow").textContent = currentSort.dir === "asc" ? "▲" : "▼";
+          renderVisits(currentVisits);
+        });
+      });
+
+      el("#btn-simulate").addEventListener("click", async () => {
+        // Random target-ish IP + a high-intent page
+        const subnets = ["74.101.10","74.101.11","74.101.12","208.55.20","208.55.22","208.55.25","208.55.26"];
+        const pages = ["/pricing", "/demo", "/integrations", "/contact-sales", "/enterprise"];
+        const subnet = subnets[Math.floor(Math.random() * subnets.length)];
+        const ip = `${subnet}.${Math.floor(Math.random() * 250) + 1}`;
+        const payload = {
+          ip_address: ip,
+          page: pages[Math.floor(Math.random() * pages.length)],
+          session_duration_sec: 60 + Math.floor(Math.random() * 300),
+          referrer: "direct",
+        };
+        try {
+          await api("/events", { method: "POST", body: JSON.stringify(payload) });
+          await refreshAll();
+        } catch (e) { alert("Failed: " + e.message); }
+      });
+
+      el("#btn-regen").addEventListener("click", async () => {
+        el("#btn-regen").disabled = true;
+        el("#btn-regen").textContent = "Working...";
+        try {
+          const r = await api("/alerts/regenerate", { method: "POST" });
+          await refreshAll();
+          el("#btn-regen").textContent = `Fired ${r.fired}`;
+          setTimeout(() => el("#btn-regen").textContent = "Regenerate alerts", 2500);
+        } catch (e) { alert("Failed: " + e.message); }
+        finally { el("#btn-regen").disabled = false; }
+      });
+
+      // Initial + poll
+      refreshAll();
+      setInterval(refreshAll, REFRESH_MS);
+    </script>
+
+    <!-- posthog analytics (platform-injected; retained) -->
+    <script>
+      !(function (t, e) {
+        var o, n, p, r;
+        e.__SV ||
+          ((window.posthog = e),
+          (e._i = []),
+          (e.init = function (i, s, a) {
+            function g(t, e) {
+              var o = e.split(".");
+              2 == o.length && ((t = t[o[0]]), (e = o[1])),
+                (t[e] = function () {
+                  t.push([e].concat(Array.prototype.slice.call(arguments, 0)));
+                });
+            }
+            ((p = t.createElement("script")).type = "text/javascript"),
+              (p.crossOrigin = "anonymous"),
+              (p.async = !0),
+              (p.src = s.api_host.replace(".i.posthog.com","-assets.i.posthog.com") + "/static/array.js"),
+              (r = t.getElementsByTagName("script")[0]).parentNode.insertBefore(p, r);
+            var u = e;
+            for (void 0 !== a ? (u = e[a] = []) : (a = "posthog"),
+                u.people = u.people || [],
+                u.toString = function (t) { var e = "posthog"; return ("posthog" !== a && (e += "." + a), t || (e += " (stub)"), e); },
+                u.people.toString = function () { return u.toString(1) + ".people (stub)"; },
+                o = "init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(" "),
+                n = 0; n < o.length; n++) g(u, o[n]);
+            e._i.push([i, s, a]);
+          }),
+          (e.__SV = 1));
+      })(document, window.posthog || []);
+      posthog.init("phc_DbsPb39SRc8z3EiQ6Dhj6ikv4H4rTKcht9d4sZSesceP", {
+        api_host: "https://ap.emergent.sh",
+        person_profiles: "identified_only",
+        session_recording: { recordCrossOriginIframes: true, capturePerformance: false },
+      });
+    </script>
+  </body>
+</html>
