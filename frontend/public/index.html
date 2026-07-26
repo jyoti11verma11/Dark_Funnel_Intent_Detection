@@ -48,6 +48,84 @@
         z-index: 0;
       }
       #root { display: none; } /* React is not used - keep out of the way */
+
+      /* ---------- Auth screen ---------- */
+      .auth-screen {
+        min-height: 100vh;
+        display: flex; align-items: center; justify-content: center;
+        padding: 32px 16px;
+        position: relative; z-index: 1;
+      }
+      .auth-card {
+        width: 100%; max-width: 420px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 32px 28px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      }
+      .auth-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-family: var(--mono); }
+      .auth-brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+      .auth-brand h1 { margin: 0; font-size: 15px; font-weight: 700; }
+      .auth-brand .sub { color: var(--text-dim); font-size: 12px; }
+      .auth-tag { color: var(--text-dim); font-size: 13px; margin: 4px 0 22px; line-height: 1.5; }
+
+      .auth-tabs {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 4px;
+        margin-bottom: 20px;
+      }
+      .auth-tab {
+        appearance: none; background: transparent; border: none;
+        padding: 8px 10px; border-radius: 7px;
+        font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+        cursor: pointer; transition: background-color .15s ease, color .15s ease;
+      }
+      .auth-tab:hover { color: var(--text); }
+      .auth-tab.active {
+        background: var(--panel); color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--border-strong);
+      }
+
+      .auth-form { display: flex; flex-direction: column; gap: 14px; }
+      .auth-field { display: flex; flex-direction: column; gap: 6px; }
+      .auth-field label {
+        font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+        text-transform: uppercase; color: var(--text-dim);
+      }
+      .auth-field .opt { text-transform: none; letter-spacing: 0; }
+      .auth-field input {
+        background: transparent;
+        border: 1px solid var(--border-strong);
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: var(--text);
+        font-family: var(--mono); font-size: 13px;
+        transition: border-color .15s ease, background-color .15s ease;
+      }
+      .auth-field input:focus {
+        outline: none;
+        border-color: var(--accent-dim);
+        background: rgba(126,231,135,0.03);
+      }
+      .auth-error {
+        min-height: 18px;
+        color: var(--danger);
+        font-family: var(--mono); font-size: 12px;
+      }
+      .auth-submit { justify-self: stretch; padding: 11px 14px; }
+      .auth-foot { margin-top: 18px; text-align: center; font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+
+      /* User chip in header */
+      .user-chip {
+        font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+        padding: 6px 10px; border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel-2);
+      }
       .app { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
 
       /* ---------- Header ---------- */
@@ -338,7 +416,46 @@
   <body>
     <div id="root"></div>
 
-    <div class="app" data-testid="dashboard-root">
+    <!-- ============================================================
+         AUTH SCREEN (shown when not logged in)
+         ============================================================ -->
+    <div class="auth-screen" id="auth-screen" data-testid="auth-screen">
+      <div class="auth-card">
+        <div class="auth-brand">
+          <span class="dot"></span>
+          <h1>DARK_FUNNEL <span class="sub">// intent detection</span></h1>
+        </div>
+        <p class="auth-tag">Sign in to view scored intent signals from your target accounts.</p>
+
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" data-mode="login" data-testid="tab-login">Sign in</button>
+          <button type="button" class="auth-tab" data-mode="signup" data-testid="tab-signup">Create account</button>
+        </div>
+
+        <form class="auth-form" id="auth-form" data-testid="auth-form" autocomplete="on">
+          <div class="auth-field auth-name-field" style="display:none;">
+            <label>Name <span class="opt">(optional)</span></label>
+            <input type="text" id="auth-name" data-testid="auth-name" autocomplete="name" placeholder="Jane Doe" />
+          </div>
+          <div class="auth-field">
+            <label>Email</label>
+            <input type="email" id="auth-email" data-testid="auth-email" autocomplete="email" required placeholder="you@company.com" />
+          </div>
+          <div class="auth-field">
+            <label>Password <span class="opt auth-signup-hint" style="display:none;">(min 6 chars)</span></label>
+            <input type="password" id="auth-password" data-testid="auth-password" autocomplete="current-password" required placeholder="••••••••" />
+          </div>
+          <div class="auth-error" id="auth-error" data-testid="auth-error"></div>
+          <button type="submit" class="btn primary auth-submit" id="auth-submit" data-testid="auth-submit">Sign in</button>
+        </form>
+
+        <div class="auth-foot">
+          <span>SQLite · FastAPI · JWT · localStorage</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="app" data-testid="dashboard-root" id="app-shell" style="display:none;">
       <header class="top">
         <div class="brand">
           <span class="dot"></span>
@@ -351,6 +468,8 @@
           <button class="btn" id="btn-simulate" data-testid="simulate-visit-btn" title="Ingest a synthetic visitor event">+ Simulate visit</button>
           <button class="btn" id="btn-regen" data-testid="regen-alerts-btn" title="Fire alerts for existing high-intent matched events">Regenerate alerts</button>
           <button class="btn ghost" id="btn-accounts" data-testid="manage-accounts-btn">Manage accounts</button>
+          <span class="user-chip" id="user-chip" data-testid="user-chip"></span>
+          <button class="btn ghost" id="btn-logout" data-testid="logout-btn" title="Sign out">Sign out</button>
         </div>
       </header>
 
@@ -449,12 +568,15 @@
       // ------------------------------------------------------------------
       const API = "/api";
       const REFRESH_MS = 5000;
+      const TOKEN_KEY = "df_token";
       let currentSort = { key: "max_score", dir: "desc" };
       let highOnly = false;
       let searchQ = "";
       let expandedAccountId = null;
       let lastAlertIds = new Set();
       let threshold = 70;
+      let refreshTimer = null;
+      let currentUser = null;
 
       // ------------------------------------------------------------------
       // Helpers
@@ -462,12 +584,26 @@
       const el = (sel) => document.querySelector(sel);
       const elAll = (sel) => Array.from(document.querySelectorAll(sel));
 
+      function getToken() { return localStorage.getItem(TOKEN_KEY); }
+      function setToken(t) { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); }
+
       async function api(path, opts = {}) {
-        const res = await fetch(API + path, {
-          headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-          ...opts,
-        });
-        if (!res.ok) throw new Error(await res.text());
+        const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+        const token = getToken();
+        if (token) headers["Authorization"] = "Bearer " + token;
+        const res = await fetch(API + path, { ...opts, headers });
+        if (res.status === 401) {
+          // Token invalid/expired - bounce back to login.
+          setToken(null);
+          currentUser = null;
+          showAuthScreen();
+          throw new Error("Not authenticated");
+        }
+        if (!res.ok) {
+          let msg = await res.text();
+          try { msg = JSON.parse(msg).detail || msg; } catch (_) {}
+          throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg));
+        }
         return res.json();
       }
 
@@ -736,8 +872,99 @@
       });
 
       // Initial + poll
-      refreshAll();
-      setInterval(refreshAll, REFRESH_MS);
+      // (Boot handled at the bottom of the script by the auth flow.)
+
+      // ------------------------------------------------------------------
+      // Auth flow
+      // ------------------------------------------------------------------
+      let authMode = "login";
+
+      function showAuthScreen() {
+        el("#app-shell").style.display = "none";
+        el("#auth-screen").style.display = "flex";
+        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+        // reset new-alert highlighting so re-login doesn't flash everything
+        lastAlertIds = new Set();
+      }
+
+      function showDashboard() {
+        el("#auth-screen").style.display = "none";
+        el("#app-shell").style.display = "flex";
+        if (currentUser) {
+          el("#user-chip").textContent = currentUser.name ? `${currentUser.name} · ${currentUser.email}` : currentUser.email;
+        }
+        refreshAll();
+        if (!refreshTimer) refreshTimer = setInterval(refreshAll, REFRESH_MS);
+      }
+
+      function setAuthMode(mode) {
+        authMode = mode;
+        elAll(".auth-tab").forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
+        el(".auth-name-field").style.display = mode === "signup" ? "flex" : "none";
+        el(".auth-signup-hint").style.display = mode === "signup" ? "inline" : "none";
+        el("#auth-password").setAttribute("autocomplete", mode === "signup" ? "new-password" : "current-password");
+        el("#auth-submit").textContent = mode === "signup" ? "Create account" : "Sign in";
+        el("#auth-error").textContent = "";
+      }
+
+      elAll(".auth-tab").forEach(t => t.addEventListener("click", () => setAuthMode(t.dataset.mode)));
+
+      el("#auth-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const err = el("#auth-error");
+        err.textContent = "";
+        const email = el("#auth-email").value.trim();
+        const password = el("#auth-password").value;
+        const name = el("#auth-name").value.trim();
+        if (!email || !password) { err.textContent = "Email and password required."; return; }
+        const submit = el("#auth-submit");
+        const original = submit.textContent;
+        submit.disabled = true; submit.textContent = "Working...";
+        try {
+          const path = authMode === "signup" ? "/auth/signup" : "/auth/login";
+          const body = authMode === "signup" ? { email, password, name } : { email, password };
+          const res = await fetch(API + path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            err.textContent = (data && data.detail) ? data.detail : "Sign-in failed.";
+            return;
+          }
+          setToken(data.token);
+          currentUser = data.user;
+          showDashboard();
+        } catch (ex) {
+          err.textContent = ex.message || "Network error.";
+        } finally {
+          submit.disabled = false; submit.textContent = original;
+        }
+      });
+
+      el("#btn-logout").addEventListener("click", () => {
+        setToken(null);
+        currentUser = null;
+        el("#auth-email").value = "";
+        el("#auth-password").value = "";
+        el("#auth-name").value = "";
+        setAuthMode("login");
+        showAuthScreen();
+      });
+
+      // On page load: if we have a token, validate it via /me; otherwise show auth screen.
+      (async function boot() {
+        const token = getToken();
+        if (!token) { showAuthScreen(); return; }
+        try {
+          const me = await api("/auth/me");
+          currentUser = me;
+          showDashboard();
+        } catch (_) {
+          // api() already flipped to the auth screen on 401
+        }
+      })();
     </script>
 
     <!-- posthog analytics (platform-injected; retained) -->

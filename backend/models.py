@@ -8,6 +8,17 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
+class User(Base):
+    """Registered dashboard user (open signup)."""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(256), unique=True, nullable=False, index=True)
+    password_hash = Column(String(256), nullable=False)
+    name = Column(String(128), nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+
+
 class VisitorEvent(Base):
     """A single anonymous visitor pageview event."""
     __tablename__ = "visitor_events"

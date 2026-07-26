@@ -13,7 +13,27 @@ template fallback).
 - [`backend/`](./backend) — FastAPI app, models, resolver, scorer, seeder
 - [`backend/seed_data.py`](./backend/seed_data.py) — synthetic event generator
 - [`backend/target_accounts.csv`](./backend/target_accounts.csv) — seed CRM list
-- [`frontend/public/index.html`](./frontend/public/index.html) — the dashboard
+- [`backend/auth.py`](./backend/auth.py) — JWT + bcrypt auth helpers
+- [`frontend/public/index.html`](./frontend/public/index.html) — the dashboard (login screen + dashboard)
+
+---
+
+## Auth
+
+Email + password + JWT with **open signup**. First-time users click
+"Create account" on the login screen. The token is stored in `localStorage`
+(`df_token`) and attached as `Authorization: Bearer <jwt>` to every `/api/*`
+call. All data routes are protected; `/api/`, `/api/auth/signup`,
+`/api/auth/login` are public.
+
+```
+POST /api/auth/signup   → { token, user }
+POST /api/auth/login    → { token, user }
+GET  /api/auth/me       → user (requires bearer token)
+```
+
+Configure `JWT_SECRET` in `backend/.env` (a random 64-char hex is fine —
+the seed value in `.env` is for local dev only, rotate before deploying).
 
 ---
 

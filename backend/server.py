@@ -23,12 +23,18 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, init_db
-from models import Alert, TargetAccount, VisitorEvent
+from models import Alert, TargetAccount, User, VisitorEvent
 from ip_resolver import resolve_ip
 from matcher import match_domain, _normalise_domain
 from scoring import compute_intent_score
 from summarizer import summarize_session
 from alerting import send_to_slack, update_hubspot_property
+from auth import (
+    create_access_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
 
 
 ROOT_DIR = Path(__file__).parent
@@ -47,6 +53,10 @@ INTENT_ALERT_THRESHOLD = int(os.environ.get("INTENT_ALERT_THRESHOLD", "70"))
 # ---------------------------------------------------------------------------
 app = FastAPI(title="Dark Funnel Intent Detection")
 api = APIRouter(prefix="/api")
+
+# Everything under /api requires auth EXCEPT the auth router itself and /api/.
+auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
+protected = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 
 
 @app.on_event("startup")
@@ -144,7 +154,7 @@ class MatchedVisitOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Health
+# Health (public)
 # ---------------------------------------------------------------------------
 @api.get("/")
 def root():
@@ -156,9 +166,64 @@ def root():
 
 
 # ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+class SignupIn(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class AuthOut(BaseModel):
+    token: str
+    user: dict
+
+
+def _user_dict(u: User) -> dict:
+    return {"id": u.id, "email": u.email, "name": u.name, "created_at": u.created_at.isoformat() if u.created_at else None}
+
+
+@auth_router.post("/signup", response_model=AuthOut)
+def signup(payload: SignupIn, db: Session = Depends(get_db)):
+    email = (payload.email or "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required.")
+    if not payload.password or len(payload.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+    user = User(email=email, password_hash=hash_password(payload.password), name=(payload.name or "").strip() or None)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    token = create_access_token(user.id, user.email)
+    return {"token": token, "user": _user_dict(user)}
+
+
+@auth_router.post("/login", response_model=AuthOut)
+def login(payload: LoginIn, db: Session = Depends(get_db)):
+    email = (payload.email or "").strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not verify_password(payload.password or "", user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+    token = create_access_token(user.id, user.email)
+    return {"token": token, "user": _user_dict(user)}
+
+
+@auth_router.get("/me")
+def me(current: User = Depends(get_current_user)):
+    return _user_dict(current)
+
+
+# ---------------------------------------------------------------------------
 # Events (ingest + list)
 # ---------------------------------------------------------------------------
-@api.post("/events", response_model=EventOut)
+@protected.post("/events", response_model=EventOut)
 async def ingest_event(payload: EventIn, db: Session = Depends(get_db)):
     now = payload.timestamp or datetime.now(timezone.utc)
     resolved = resolve_ip(payload.ip_address)
@@ -210,7 +275,7 @@ async def ingest_event(payload: EventIn, db: Session = Depends(get_db)):
     return event
 
 
-@api.get("/events", response_model=List[EventOut])
+@protected.get("/events", response_model=List[EventOut])
 def list_events(
     limit: int = 100,
     high_intent_only: bool = False,
@@ -229,7 +294,7 @@ def list_events(
 # ---------------------------------------------------------------------------
 # Matched visits (aggregated per-company view used by the dashboard)
 # ---------------------------------------------------------------------------
-@api.get("/visits/matched", response_model=List[MatchedVisitOut])
+@protected.get("/visits/matched", response_model=List[MatchedVisitOut])
 def matched_visits(
     high_intent_only: bool = False,
     db: Session = Depends(get_db),
@@ -291,12 +356,12 @@ def matched_visits(
 # ---------------------------------------------------------------------------
 # Target accounts CRUD + CSV import
 # ---------------------------------------------------------------------------
-@api.get("/accounts", response_model=List[TargetAccountOut])
+@protected.get("/accounts", response_model=List[TargetAccountOut])
 def list_accounts(db: Session = Depends(get_db)):
     return db.query(TargetAccount).order_by(TargetAccount.company_name).all()
 
 
-@api.post("/accounts", response_model=TargetAccountOut)
+@protected.post("/accounts", response_model=TargetAccountOut)
 def create_account(payload: TargetAccountIn, db: Session = Depends(get_db)):
     domain = _normalise_domain(payload.domain)
     existing = db.query(TargetAccount).filter(TargetAccount.domain == domain).first()
@@ -315,7 +380,7 @@ def create_account(payload: TargetAccountIn, db: Session = Depends(get_db)):
     return acc
 
 
-@api.delete("/accounts/{account_id}")
+@protected.delete("/accounts/{account_id}")
 def delete_account(account_id: int, db: Session = Depends(get_db)):
     acc = db.query(TargetAccount).filter(TargetAccount.id == account_id).first()
     if not acc:
@@ -325,7 +390,7 @@ def delete_account(account_id: int, db: Session = Depends(get_db)):
     return {"deleted": account_id}
 
 
-@api.post("/accounts/import")
+@protected.post("/accounts/import")
 async def import_accounts(file: UploadFile = File(...), db: Session = Depends(get_db)):
     text = (await file.read()).decode("utf-8")
     reader = csv.DictReader(io.StringIO(text))
@@ -406,7 +471,7 @@ async def _fire_alert(db: Session, event: VisitorEvent, account: TargetAccount) 
     return alert
 
 
-@api.get("/alerts", response_model=List[AlertOut])
+@protected.get("/alerts", response_model=List[AlertOut])
 def list_alerts(limit: int = 50, db: Session = Depends(get_db)):
     return (
         db.query(Alert)
@@ -416,7 +481,7 @@ def list_alerts(limit: int = 50, db: Session = Depends(get_db)):
     )
 
 
-@api.post("/alerts/regenerate")
+@protected.post("/alerts/regenerate")
 async def regenerate_alerts(db: Session = Depends(get_db)):
     """
     Sweep existing high-intent matched events and fire alerts for any that
@@ -447,7 +512,7 @@ async def regenerate_alerts(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 # Stats
 # ---------------------------------------------------------------------------
-@api.get("/stats")
+@protected.get("/stats")
 def stats(db: Session = Depends(get_db)):
     total = db.query(VisitorEvent).count()
     matched = db.query(VisitorEvent).filter(VisitorEvent.matched_account_id.isnot(None)).count()
@@ -468,6 +533,8 @@ def stats(db: Session = Depends(get_db)):
 # Wire up
 # ---------------------------------------------------------------------------
 app.include_router(api)
+app.include_router(auth_router)
+app.include_router(protected)
 
 app.add_middleware(
     CORSMiddleware,

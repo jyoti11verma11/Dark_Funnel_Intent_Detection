@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 2 (JWT auth) testing complete. 26/26 backend pytest tests pass, covering health public route, all 6 protected endpoints returning 401 without token, signup happy-path + duplicate 409 + short-pass 400 + invalid-email 400, login success + wrong-password 401 + nonexistent 401, /api/auth/me with valid/invalid/missing token, and all previously-working data endpoints (stats, accounts CRUD, events ingest+match+alert, matched-visits sort, alerts list, regenerate idempotency) with Bearer auth. Frontend Playwright flow verified: first-load shows auth-screen and hides dashboard-root; signup via tab-signup stores token in localStorage.df_token and reveals dashboard with user-chip populated; all iteration_1 testids render (stat-*, visits-table, alerts-list, filter-high-intent); logout clears token and returns to login; login via tab-login with created creds succeeds; reload keeps user logged in (auth/me boot validation); invalid credentials render [data-testid=auth-error] with 'Invalid email or password.' and stay on the login screen.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "auth.py verify_password swallows all exceptions with bare `except Exception` — fine for malformed hashes but hides real errors; log a warning instead of silently returning False.",
+    "JWT_SECRET is loaded via os.environ.get inside a helper each call — acceptable, but load_dotenv is only executed in server.py; auth.py relies on server.py having been imported first. If auth.py is imported standalone (e.g., in a script) JWT_SECRET may be missing. Consider load_dotenv in auth.py too.",
+    "No rate limiting or brute-force lockout on /api/auth/login — the playbook_testing_instructions call this out. Not implemented; low risk for demo but flag for production.",
+    "Password reset / refresh token flows are absent (by design per problem statement — bare 7d access token). Confirm this is acceptable long-term.",
+    "Signup response returns raw dict for `user` via _user_dict but AuthOut declares `user: dict` — consider a proper UserOut Pydantic model for schema correctness.",
+    "SQLite file (/app/backend/dark_funnel.db) is committed alongside code; users table will grow with every test signup. Consider a cleanup fixture or DELETE FROM users WHERE email LIKE 'test_%' in teardown for long-term hygiene."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "demo@darkfunnel.local / demo1234 (pre-seeded). Tests create their own users via /api/auth/signup with test_<uuid>@example.com / testpass123.",
+  "seed_data_creation": "Each pytest run creates one throwaway signup user; frontend Playwright run creates uitest_<ts>@example.com. Not cleaned up in SQLite users table.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend test file at /app/backend/tests/backend_test.py now includes a session-scoped `auth_data` fixture that signs up a fresh test user and yields token/user, plus an authenticated `client` fixture. Run with: `cd /app/backend && REACT_APP_BACKEND_URL=<url> python -m pytest tests/backend_test.py -v -o addopts=''` (pytest.ini has xdist addopts that xdist plugin doesn't handle unless invoked appropriately; -o addopts='' bypasses). All 26 tests should pass. Frontend testids verified in this iteration: auth-screen, auth-form (implicit), tab-login, tab-signup, auth-name, auth-email, auth-password, auth-error, auth-submit, user-chip, logout-btn, dashboard-root — in addition to all iteration_1 testids.",
+  "rca of the issue": "No issues found. JWT auth implementation is clean: bcrypt hashing, HS256 tokens with 7d TTL, proper 401s from get_current_user dependency, protected router shape avoids repeating Depends on each endpoint. Frontend correctly gates dashboard and validates token on boot via /api/auth/me."
+}
