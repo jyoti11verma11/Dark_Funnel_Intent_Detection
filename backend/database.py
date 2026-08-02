@@ -7,7 +7,10 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv(Path(__file__).parent / ".env")
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:////app/backend/dark_funnel.db")
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "sqlite:///dark_funnel.db"
+)
 
 # check_same_thread is only relevant for SQLite; ignored by other drivers.
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
