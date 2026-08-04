@@ -9,7 +9,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "sqlite:///dark_funnel.db"
+    f"sqlite:///{BASE_DIR / 'dark_funnel.db'}"
 )
 
 # check_same_thread is only relevant for SQLite; ignored by other drivers.
@@ -23,9 +23,14 @@ Base = declarative_base()
 def get_db():
     db = SessionLocal()
     try:
-        yield db
-    finally:
-        db.close()
+     n db.add(user)
+    db.commit()
+    db.refresh(user)
+except Exception as e:
+    db.rollback()
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=str(e))
 
 
 def init_db():
