@@ -536,10 +536,15 @@ app.include_router(api)
 app.include_router(auth_router)
 app.include_router(protected)
 
+origins = os.environ.get(
+    "CORS_ORIGINS",
+    "https://dark-funnel-intent-detection-1.onrender.com"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=origins,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
